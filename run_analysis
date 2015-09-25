@@ -1,0 +1,79 @@
+# Step0: loads r package "reshape2"
+library(reshape2)
+
+# Step1:Download Data set
+# This step downloads the data set
+
+fileUrl <- "https://d396qusza40orc.cloudfront.net/getdata%2Fprojectfiles%2FUCI%20HAR%20Dataset.zip"
+destFile <- "Project/ProjectDataSet.zip"
+download.file (url = fileUrl,destfile = destFile,method = "libcurl")
+unzip (destFile ,exdir="ProjectDataSet")
+
+# Step2:Reading Data sets
+# a. This step reads the TEST data sets "X_test.txt", "y_test.txt", "subject_test.txt"
+
+data_X_test <- read.table("ProjectDataSet/UCI HAR Dataset/test/X_test.txt")
+data_y_test <- read.table("ProjectDataSet/UCI HAR Dataset/test/y_test.txt")
+data_subject_test <- read.table("ProjectDataSet/UCI HAR Dataset/test/subject_test.txt")
+
+# b. This step reads the TRAIN data sets "X_train.txt", "y_train.txt", "subject_train.txt"
+
+data_X_train <- read.table("ProjectDataSet/UCI HAR Dataset/train/X_train.txt")
+data_y_train <- read.table("ProjectDataSet/UCI HAR Dataset/train/y_train.txt")
+data_subject_train<- read.table("ProjectDataSet/UCI HAR Dataset/train/subject_train.txt")
+
+# Step3: Merge Data sets 
+# This step row binds TEST an TRAIN data into 3 sets "X_test_train", "y_test_train"
+# and "subject_test_train"
+
+X_test_train <- rbind(data_X_test,data_X_train)
+y_test_train <- rbind(data_y_test,data_y_train)
+subject_test_train <- rbind(data_subject_test,data_subject_train)
+
+# Step4: Creates data set with only the measurements on the mean and standard deviation 
+
+# a.Reads "features.txt"
+features <- read.table("ProjectDataSet/UCI HAR Dataset/features.txt")
+
+# b.Names the variables in the "X_test_train" using "features" descriptions
+colnames(X_test_train) <- features[,2]
+
+# c.Creates logical vectors "row_mean " and "row_std" from "features" data set that contains only mean
+#   and standard deviation features
+
+row_mean <- sapply(features[,2],function(x) grepl("mean()",x,fixed=TRUE))
+row_std <- sapply(features[,2],function(x) grepl("std()",x,fixed=TRUE))
+
+# d.Uses logical vectors "row_mean" and "row_std" to select columns with only mean and standard
+#   deviation from the "X_test_train" called "filtered_X_test_train"
+filtered_X_test_train <- X_test_train[,row_mean|row_std]
+
+# Step5:Creates the final "(un)tidy" dataset
+
+# a.Reads "activity_labels.txt" data
+activity_labels <- read.table("ProjectDataSet/UCI HAR Dataset/activity_labels.txt")
+
+# b.Merges "activity labels" with "y_test_train" based on common id "V1"
+y_test_train_activity_labeled <- merge(y_test_train,activity_labels,by="V1")
+
+# c. Names columns of the "y_test_train_activity_labeled" data set
+names(y_test_train_activity_labeled) <- c("id","Activity")
+y_test_train_activity_labeled <- y_test_train_activity_labeled ["Activity"]
+
+# d.Names the column of the "subject_test_train"
+names(subject_test_train) <- c("Subjects")
+
+# e. Column binds "filtered_X_test_train" ,"y_test_train_activity_labeled","subject_test_train"
+#  data sets into one
+data <- cbind(filtered_X_test_train,y_test_train_activity_labeled,subject_test_train)
+
+# Step6: Creates the final "tidy" data set
+# a. transforms the data from the wide into the long data set
+data_melt <-melt(data,id=c("Activity","Subjects"))
+
+# b.Calculates means of every variable by Subject and Activity
+tidy_data_set <- dcast(data_melt,Subjects + Activity ~ variable,mean)
+
+# c.Exports the recalculated "tidy" data into txt file
+destTidyFile <- "Project/Tidy_data_set.txt"
+write.table(tidy_data_set, destTidyFile,row.names=FALSE)
